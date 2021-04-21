@@ -15,13 +15,7 @@ void tictac3::are_they_in_game(name player1, name player2){
   itr2 = idx.find(player2.value);
   check ( itr2 == idx.end(), "Player2 is alreday a challenger!") ;
 
-/*  auto game_itr = _games.begin();
-  while(game_itr != _games.end() ){
-    check (game_itr->player_challenger != player1, "Player1 is already a challenger!") ;
-    check (game_itr->player_challenger != player2, "Player2 is alreday a challenger!") ;
-    game_itr++;
-  }*/
-  // when both players are not in both hosts and challengers, return.
+ // when both players are not in both hosts and challengers, return.
   return;
 }
 
@@ -37,6 +31,8 @@ ACTION tictac3::create( const name challenger, name host ) {
   _games.emplace(host, [&](auto& game) {
     game.player_host = host;
     game.player_challenger = challenger;
+    game.turns = 0;
+    game.winner = 0;
   });
 }
 

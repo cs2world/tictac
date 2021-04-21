@@ -18,8 +18,20 @@ CONTRACT tictac3 : public contract {
 
   private:
     TABLE game_record {
+      static constexpr uint16_t board_width = 3;
+      static constexpr uint16_t board_height = board_width;
+
       name  player_host;
       name  player_challenger;
+      /***
+      uint8_t board[3][3]; // = {{0,0,0},{0,0,0},{0,0,0}}; // is this OK?
+      array is not support ***/
+      game_record():board(board_width * board_height, 0) {} // initialize will do?
+
+      vector<uint8_t> board;
+
+      uint8_t turns; // even#: challenger's turn; each valid move, turns++; odd#: host's turns 
+      uint8_t winner; // 0: no winner; 1: the host wins; 2: the challenger wins; 3: draw
 
       uint64_t primary_key() const { return player_host.value; }
       // add the second index
