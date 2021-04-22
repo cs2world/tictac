@@ -18,6 +18,25 @@ void tictac3::are_they_in_game(name player1, name player2){
  // when both players are not in both hosts and challengers, return.
   return;
 }
+/*
+bool tictac3::is_empty_cell(uint32_t _board, uint16_t x, uint16_t y){
+  uint16_t position = x + 3 * y;
+  uint16_t value_on_position = _board & CELL_MASK[ position ];
+  if( value_on_position == 0) return true;
+  //"the cell is taken, please try other cells."); 
+  return false;
+}*/
+
+// return value 0: no winner; 1: winner is host; 2: winner is challenger; 3: draw
+uint8_t tictac3::get_winner(uint32_t _board){
+  uint32_t win_pattern;
+  for(int i=0; i<8; i++) {
+    win_pattern = _board & CHECK_WIN_PATTERN[ i ];
+    if(win_pattern == HOST_WIN_PATTERN[ i ])    return 1; // winner is host.
+    if(win_pattern == SET_CELL_CHALLENGER[ i ]) return 2; // chanllenger wins.
+  }
+  return 0; // no winner
+}
 
 
 ACTION tictac3::create( const name challenger, name host ) {
@@ -31,6 +50,7 @@ ACTION tictac3::create( const name challenger, name host ) {
   _games.emplace(host, [&](auto& game) {
     game.player_host = host;
     game.player_challenger = challenger;
+    game.board = 0;
     game.turns = 0;
     game.winner = 0;
   });
@@ -49,7 +69,7 @@ ACTION tictac3::close( const name challenger, const name host ) {
     game_itr = _games.erase(game_itr);
     return;
   }
-  // other challenger as player_host
+  // otherwise the challenger as player_host
   game_itr = _games.find(challenger.value);
   //auto game_itr = _games.begin();
   if (game_itr != _games.end() && game_itr->player_challenger == host ) {
@@ -57,7 +77,54 @@ ACTION tictac3::close( const name challenger, const name host ) {
     return;
   }
   // the record is not found either way h->>c, or c->>h
-  check( 1 == 0, "No game record found for them!");
+  check( false, "No game record found for you!");
 }
 
-EOSIO_DISPATCH(tictac3, (create)(close))
+ACTION tictac3::move( name player, uint16_t x, uint16_t y){
+  check( has_auth( player), "You shold has the permission to play.");
+  // x, y has three valid values [0,1,2], any value>2 will be set=2.
+  if( x > 2 ) x = 2;
+  if( y > 2 ) y = 2;
+  uint16_t position = x + 3 * y;
+  // find the game record first in the games table
+  games_table _games(get_self(), get_self().value);
+  
+  auto game_itr = _games.find(player.value);
+  if (game_itr != _games.end() ) {// player is the host
+    check(game_itr->winner == 0, "Game over: Winner=1: Host; 2: Challenger; 3: Draw");
+    uint8_t _turns = game_itr->turns; 
+    check( _turns % 2 == 1, "This is the Challenger's turn!" );
+    check( game_itr->board & CELL_MASK[ position ] == 0, "This cell is taken.");
+    _games.modify(game_itr, get_self(), [&](auto& this_game) {
+      this_game.board |= SET_CELL_HOST[ position ]; // cell is taken by host
+      this_game.winner = get_winner(this_game.board);
+      this_game.turns++;
+      if(this_game.turns >= 8) this_game.winner = 3; // it is a tie game
+    });
+  }
+  else
+  {
+    auto idx = _games.get_index<name("bychallenger")>();
+    auto game_itr = idx.find(player.value);
+  
+    if( game_itr != idx.end()){ // player is the challenger
+      check(game_itr->winner == 0, "Game over: Winner=1: Host; 2: Challenger; 3: Draw");
+      uint8_t _turns = game_itr->turns; 
+      check( _turns % 2 == 0, "This is the Host's turn!" );
+      check( game_itr->board & CELL_MASK[ position ] == 0, "This cell is taken.");
+      idx.modify(game_itr, get_self(), [&](auto& this_game){  // idx.modify()????!!!
+        this_game.board |= SET_CELL_CHALLENGER[ position ]; // cell is taken by challenger
+        this_game.winner = get_winner(this_game.board);
+        this_game.turns++;
+        if(this_game.turns >= 8) this_game.winner = 3; // it is a draw
+      });
+    }
+    else
+    { // not found either in host's nor in challenger's list
+      check(false, "You are not in the game yet....!");
+    }
+  }
+  
+}
+
+EOSIO_DISPATCH(tictac3, (create)(close)(move))
