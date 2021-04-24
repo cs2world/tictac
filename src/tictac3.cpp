@@ -153,7 +153,7 @@ ACTION tictac3::move( name player, uint16_t x, uint16_t y){
       this_game.board |= SET_CELL_HOST[ position ]; // cell is taken by host
       this_game.winner = get_winner(this_game.board);
       this_game.turns++;
-      if(this_game.turns >= 8) this_game.winner = 3; // it is a tie game
+      if(this_game.turns >= 9) this_game.winner = 3; // it is a tie game
     });
   }
 
@@ -167,7 +167,7 @@ ACTION tictac3::move( name player, uint16_t x, uint16_t y){
       this_game.board |= SET_CELL_CHALLENGER[ position ]; // cell is taken by challenger
       this_game.winner = get_winner(this_game.board);
       this_game.turns++;
-      if(this_game.turns >= 8) this_game.winner = 3; // it is a draw
+      if(this_game.turns >= 9) this_game.winner = 3; // it is a draw
     });
   }
   
