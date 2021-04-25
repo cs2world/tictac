@@ -53,6 +53,7 @@ ACTION tictac3::create( const name challenger, name host ) {
     game.board = 0;
     game.turns = 0;
     game.winner = 0;
+    game.last_move_tp = current_time_point();
   });
 }
 
@@ -62,7 +63,7 @@ ACTION tictac3::close( const name challenger, const name host ) {
   // confirm they are both on one game record
   games_table _games(get_self(), get_self().value);
 
-  // Delete all records in _games table
+  // Delete ONLY one record in _games table
   auto game_itr = _games.find(host.value);
   //auto game_itr = _games.begin();
   if (game_itr != _games.end() && game_itr->player_challenger == challenger ) {
@@ -85,7 +86,7 @@ ACTION tictac3::close( const name challenger, const name host ) {
 ** then update the game record to the initial state 
 */
 ACTION tictac3::restart(name player){
-  check( has_auth( player), "You shold has the permission to play.");
+  check( has_auth( player), "You shold have the permission to play.");
   
   games_table _games(get_self(), get_self().value);
   auto primary_itr = _games.find(player.value);
@@ -102,6 +103,7 @@ ACTION tictac3::restart(name player){
       this_game.board = 0; // clear the board
       this_game.winner = 0;
       this_game.turns = 0;
+      this_game.last_move_tp = eosio::current_time_point();
       return;
     });
   }
@@ -111,6 +113,7 @@ ACTION tictac3::restart(name player){
       this_game.board = 0; // clear the board
       this_game.winner = 0;
       this_game.turns = 0;
+      this_game.last_move_tp = current_time_point();
       return;
     });
   }
@@ -122,7 +125,10 @@ ACTION tictac3::restart(name player){
 }
 
 ACTION tictac3::move( name player, uint16_t x, uint16_t y){
-  check( has_auth( player), "You shold has the permission to play.");
+  check( has_auth( player), "You shold have the permission to play.");
+  // get the current time 
+  time_point this_moment = current_time_point();
+
   // x, y has three valid values [0,1,2], any value>2 will be set=2.
   if( x > 2 ) x = 2;
   if( y > 2 ) y = 2;
@@ -145,12 +151,27 @@ ACTION tictac3::move( name player, uint16_t x, uint16_t y){
   if( (primary_itr != _games.end()) && (index_itr == idx.end()) ){ // is a host
     check(primary_itr->winner == 0, "Game over: Winner=1: Host; 2: Challenger; 3: Draw");
     uint8_t _turns = primary_itr->turns; 
+    if( this_moment > (primary_itr->last_move_tp + WAITING_TIME ) ) { // two munites are over, who has the turns will lose
+      if( ( _turns % 2 ) == 1 ) { // host's turn, host loses
+        _games.modify(primary_itr, get_self(), [&] (auto& this_game) {
+          this_game.winner = 2; // challenger wins
+          //this_game.last_move_tp = 0; // time due
+        });
+      } else { // this is challenger's turn, challenger lose
+        _games.modify(primary_itr, get_self(), [&] (auto& this_game) {
+          this_game.winner = 1; // host wins
+          //this_game.last_move_tp = 0; // time due
+        });
+      }
+      return; // stop as the time is over, game over too!
+    }
     
     check( _turns % 2 == 1, "This is the Challenger's turn!" );
     
     check( (primary_itr->board & CELL_MASK[ position ] ) == 0, "This cell is taken.");
     _games.modify(primary_itr, get_self(), [&](auto& this_game) {
       this_game.board |= SET_CELL_HOST[ position ]; // cell is taken by host
+      this_game.last_move_tp = eosio::current_time_point();
       this_game.winner = get_winner(this_game.board);
       this_game.turns++;
       if(this_game.turns >= 9) this_game.winner = 3; // it is a tie game
@@ -160,11 +181,29 @@ ACTION tictac3::move( name player, uint16_t x, uint16_t y){
  if( (primary_itr == _games.end()) && (index_itr != idx.end()) ){ // is a challenger 
     check(index_itr->winner == 0, "Game over: Winner=1: Host; 2: Challenger; 3: Draw");
     uint8_t _turns = index_itr->turns; 
+
+    if( this_moment > ( index_itr->last_move_tp + WAITING_TIME ) ) {
+      if( ( _turns % 2 ) == 1 ) { // host's turn, host loses
+        idx.modify(index_itr, get_self(), [&] (auto& this_game) {
+          this_game.winner = 2; // challenger wins
+          //this_game.last_move_tp = 0; // time due
+        });
+      } else { // this is challenger's turn, challenger lose
+        idx.modify(index_itr, get_self(), [&] (auto& this_game) {
+          this_game.winner = 1; // host wins
+          //this_game.last_move_tp = 0;
+        });
+      }
+
+      return; // game over as time is due.
+    } 
+        
     check( _turns % 2 == 0, "This is the Host's turn!" );
   
     check( ( index_itr->board & CELL_MASK[ position ] ) == 0, "This cell is taken.");
     idx.modify(index_itr, get_self(), [&](auto& this_game){  // idx.modify()????!!!
       this_game.board |= SET_CELL_CHALLENGER[ position ]; // cell is taken by challenger
+      this_game.last_move_tp = current_time_point();
       this_game.winner = get_winner(this_game.board);
       this_game.turns++;
       if(this_game.turns >= 9) this_game.winner = 3; // it is a draw

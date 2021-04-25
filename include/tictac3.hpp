@@ -1,4 +1,6 @@
 #include <eosio/eosio.hpp>
+//#include <eoslib/time.hpp>
+#include <eosio/system.hpp>
 
 using namespace std;
 using namespace eosio;
@@ -90,6 +92,8 @@ CONTRACT tictac3 : public contract {
       0b000000000000000010
     };
 
+    time_point WAITING_TIME = (time_point) minutes(1); // 1 minutes
+
     TABLE game_record {
       name  player_host;
       name  player_challenger;
@@ -99,12 +103,13 @@ CONTRACT tictac3 : public contract {
 
       uint8_t turns; // even#: challenger's turn; each valid move, turns++; odd#: host's turns 
       uint8_t winner; // 0: no winner; 1: the host wins; 2: the challenger wins; 3: draw
+      time_point last_move_tp; // the time elapsed since epoch
 
       uint64_t primary_key() const { return player_host.value; }
       // add the second index
       uint64_t second_key() const { return player_challenger.value; }
 
-      EOSLIB_SERIALIZE( game_record, (player_host)(player_challenger)(board)(turns)(winner) )
+      EOSLIB_SERIALIZE( game_record, (player_host)(player_challenger)(board)(turns)(winner)(last_move_tp))
     };
     typedef multi_index<name("games"), game_record, eosio::indexed_by<
       name("bychallenger"), eosio::const_mem_fun<
