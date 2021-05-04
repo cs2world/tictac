@@ -18,14 +18,7 @@ void tictac3::are_they_in_game(name player1, name player2){
  // when both players are not in both hosts and challengers, return.
   return;
 }
-/*
-bool tictac3::is_empty_cell(uint32_t _board, uint16_t x, uint16_t y){
-  uint16_t position = x + 3 * y;
-  uint16_t value_on_position = _board & CELL_MASK[ position ];
-  if( value_on_position == 0) return true;
-  //"the cell is taken, please try other cells."); 
-  return false;
-}*/
+
 
 // return value 0: no winner; 1: winner is host; 2: winner is challenger; 3: draw
 uint8_t tictac3::get_winner(uint32_t _board){
@@ -40,14 +33,17 @@ uint8_t tictac3::get_winner(uint32_t _board){
 
 
 ACTION tictac3::create( const name challenger, name host ) {
-  require_auth(host);
+  name payer = name("depsingleton"); 
+  check( (has_auth(host) || has_auth(payer) ), "You should have permission to create a game.");
   check( host != challenger, "you should not play against yourself!");
   check( is_account(challenger), "challenger is not a valid account!");
 
   are_they_in_game(host, challenger);
   // Init the _game table
   games_table _games(get_self(), get_self().value);
-  _games.emplace(host, [&](auto& game) {
+  
+  if( has_auth(host) ) payer = host; // else payer = depsingleton
+  _games.emplace(payer, [&](auto& game) {
     game.player_host = host;
     game.player_challenger = challenger;
     game.board = 0;
